@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -34,6 +35,7 @@ var (
 	flagLeak       = flag.Bool("leak", false, "do leak checking")
 	flagEnable     = flag.String("enable", "none", "enable only listed additional features")
 	flagDisable    = flag.String("disable", "none", "enable all additional features except listed")
+	flagDumpSC     = flag.String("dump", "none", "dump syscalls in reproducer to output")
 )
 
 func main() {
@@ -68,6 +70,23 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to deserialize the program: %v\n", err)
 		os.Exit(1)
+	}
+	if *flagDumpSC != "none" {
+		fmt.Fprint(os.Stdout, *flagDumpSC)
+		list := []string{}
+		for _, call := range p.Calls {
+			var syscall = call.Meta
+			fmt.Fprintf(os.Stderr, "syscall name: %s, nr: %d, CallName?: %s\n", syscall.Name, syscall.NR, syscall.CallName)
+			list = append(list, syscall.CallName)
+		}
+		jsonData, _ := json.MarshalIndent(list, "", "  ")
+		file, err := os.Create(*flagDumpSC)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		defer file.Close()
+		file.Write(jsonData)
 	}
 	opts := csource.Options{
 		Threaded:      *flagThreaded,
